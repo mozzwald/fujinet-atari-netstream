@@ -1,3 +1,12 @@
+;	Altirra - Atari 800/800XL/5200 emulator
+;	Replacement 850 Interface Firmware - R: Device Handler
+;	Copyright (C) 2008-2017 Avery Lee
+;
+;	Copying and distribution of this file, with or without modification,
+;	are permitted in any medium without royalty provided the copyright
+;	notice and this notice are preserved.  This file is offered as-is,
+;	without any warranty.
+;
 ;  NETStream Concurrent Engine (stripped from Altirra 850 handler)
 ;  Keeps only concurrent-mode serial engine and IRQ handlers.
 ;  Removed: device handler glue, auto-install chain, non-concurrent I/O.
