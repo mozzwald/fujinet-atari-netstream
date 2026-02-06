@@ -13,8 +13,8 @@
 ;
 ;  API jump table at BASEADDR (JMP absolute, 3 bytes each):
 ;    BASEADDR = build-time constant (Makefile HANDLER_BASE)
-;    +0   NS_BeginConcurrent  Start concurrent mode, install IRQs, assert motor
-;    +3   NS_EndConcurrent    Stop concurrent mode, restore IRQs, deassert motor
+;    +0   NS_BeginStream      Start stream mode, install IRQs, assert motor
+;    +3   NS_EndStream        Stop stream mode, restore IRQs, deassert motor
 ;    +6   NS_GetVersion       Return version byte in A
 ;    +9   NS_GetBase          Return BASEADDR in A (lo), X (hi)
 ;    +12  NS_SendByte         Enqueue A to output, C=0 ok / C=1 full
@@ -22,35 +22,14 @@
 ;    +18  NS_BytesAvail       Return RX count in A (lo), X (hi)
 ;    +21  NS_GetStatus        Return sticky status in A (clear on read)
 ;    +24  NS_GetVideoStd      Return 0=NTSC, 1=PAL
-;    +27  NS_GetVCountMax     Return max VCOUNT observed (debug)
-;    +30  NS_InitNetstream    Send $70/$F0 enable with hostname/flags/baud
-;    +33  NS_GetFinalFlags    Return final flags byte (PAL bit applied)
-;    +36  NS_GetFinalAUDF3    Return final AUDF3
-;    +39  NS_GetFinalAUDF4    Return final AUDF4
-;    +42  NS_GetNominalBaudLo Return captured nominal baud lo (debug)
-;    +45  NS_GetNominalBaudHi Return captured nominal baud hi (debug)
-;    +48  NS_GetDebugB0       Return debug byte 0
-;    +51  NS_GetDebugB1       Return debug byte 1
-;    +54  NS_GetDebugB2       Return debug byte 2
-;    +57  NS_GetDebugB3       Return debug byte 3
-;    +60  NS_GetDebugB4       Return debug byte 4
-;    +63  NS_GetDebugB5       Return debug byte 5
-;    +66  NS_GetSioStatus     Return last SIO status (Y)
-;    +69  NS_GetDcbDev        Return DDEVIC
-;    +72  NS_GetDcbCmd        Return DCOMND
-;    +75  NS_GetDcbStat       Return DSTATS
-;    +78  NS_GetDcbDbufLo     Return DBUFLO
-;    +81  NS_GetDcbDbufHi     Return DBUFHI
-;    +84  NS_GetDcbDbytLo     Return DBYTLO
-;    +87  NS_GetDcbDbytHi     Return DBYTHI
-;    +90  NS_GetDcbAux1       Return DAUX1
-;    +93  NS_GetDcbAux2       Return DAUX2
-;    +96  NS_GetDcbTimLo      Return DTIMLO
+;    +27  NS_InitNetstream    Send $70/$F0 enable with hostname/flags/baud
+;    +30  NS_GetFinalFlags    Return final flags byte (PAL bit applied)
+;    +33  NS_GetFinalAUDF3    Return final AUDF3
+;    +36  NS_GetFinalAUDF4    Return final AUDF4
 ;
 ;  Notes:
 ;  - Uses internal 32-byte input buffer and 32-byte output ring.
 ;  - PACTL motor line asserted for entire concurrent session.
-;  - Future: replace with a FujiDevice netstream command; motor is the only cue for now.
 
 		icl		'sio.inc'
 		icl		'kerneldb.inc'
@@ -94,9 +73,9 @@ siov	= $e459
 
 ;==========================================================================
 ; API jump table
-NS_BeginConcurrent:
+NS_BeginStream:
 		jmp		NS_BeginConcurrent_Impl
-NS_EndConcurrent:
+NS_EndStream:
 		jmp		NS_EndConcurrent_Impl
 NS_GetVersion:
 		jmp		NS_GetVersion_Impl
@@ -112,8 +91,6 @@ NS_GetStatus:
 		jmp		NS_GetStatus_Impl
 NS_GetVideoStd:
 		jmp		NS_GetVideoStd_Impl
-NS_GetVCountMax:
-		jmp		NS_GetVCountMax_Impl
 NS_InitNetstream:
 		jmp		NS_InitNetstream_Impl
 NS_GetFinalFlags:
@@ -122,51 +99,13 @@ NS_GetFinalAUDF3:
 		jmp		NS_GetFinalAUDF3_Impl
 NS_GetFinalAUDF4:
 		jmp		NS_GetFinalAUDF4_Impl
-NS_GetNominalBaudLo:
-		jmp		NS_GetNominalBaudLo_Impl
-NS_GetNominalBaudHi:
-		jmp		NS_GetNominalBaudHi_Impl
-NS_GetDebugB0:
-		jmp		NS_GetDebugB0_Impl
-NS_GetDebugB1:
-		jmp		NS_GetDebugB1_Impl
-NS_GetDebugB2:
-		jmp		NS_GetDebugB2_Impl
-NS_GetDebugB3:
-		jmp		NS_GetDebugB3_Impl
-NS_GetDebugB4:
-		jmp		NS_GetDebugB4_Impl
-NS_GetDebugB5:
-		jmp		NS_GetDebugB5_Impl
-NS_GetSioStatus:
-		jmp		NS_GetSioStatus_Impl
-NS_GetDcbDev:
-		jmp		NS_GetDcbDev_Impl
-NS_GetDcbCmd:
-		jmp		NS_GetDcbCmd_Impl
-NS_GetDcbStat:
-		jmp		NS_GetDcbStat_Impl
-NS_GetDcbDbufLo:
-		jmp		NS_GetDcbDbufLo_Impl
-NS_GetDcbDbufHi:
-		jmp		NS_GetDcbDbufHi_Impl
-NS_GetDcbDbytLo:
-		jmp		NS_GetDcbDbytLo_Impl
-NS_GetDcbDbytHi:
-		jmp		NS_GetDcbDbytHi_Impl
-NS_GetDcbAux1:
-		jmp		NS_GetDcbAux1_Impl
-NS_GetDcbAux2:
-		jmp		NS_GetDcbAux2_Impl
-NS_GetDcbTimLo:
-		jmp		NS_GetDcbTimLo_Impl
 
 ;==========================================================================
-; NS_BeginConcurrent
+; NS_BeginStream
 ;
 ; Enters concurrent mode, installs IRQ vectors, and enables POKEY IRQs.
 ;
-; Uses internal buffers, config in NS_Config (bit 7 = 2 stop bits).
+; Uses internal buffers (single stop bit only).
 ;
 .proc NS_BeginConcurrent_Impl
 		;NOTE: Future: add FujiDevice netstream command. For now, motor assert
@@ -236,10 +175,8 @@ NS_GetDcbTimLo:
 		lda		#$34
 		sta		pactl
 
-		;select one stop bit serial routines
+		;select serial IRQ vectors (single stop bit only)
 		ldy		#5
-		lda		#0
-		sta		serial2SBMode
 
 		;swap in interrupt handlers
 		ldx		#5
@@ -293,7 +230,7 @@ skctl_apply:
 .endp
 
 ;==========================================================================
-; NS_EndConcurrent
+; NS_EndStream
 ;
 ; Terminates concurrent I/O. Safe to call from IRQ.
 ;
@@ -495,16 +432,6 @@ empty:
 .endp
 
 ;==========================================================================
-; NS_GetVCountMax
-;
-; Output: A = NetstreamVCountMax
-;
-.proc NS_GetVCountMax_Impl
-		lda		NetstreamVCountMax
-		rts
-.endp
-
-;==========================================================================
 ; NS_InitNetstream
 ;
 ; Calling convention:
@@ -555,7 +482,6 @@ lookup_ok:
 ntsc_flag:
 		and		#$ef
 store_flags:
-		ora		#$02			; force REGISTER bit on for now
 		sta		NetstreamFinalFlags
 
 		; build payload buffer: hostname\0 flags audf3 (pad to 64 bytes)
@@ -596,42 +522,31 @@ payload_done:
 		; setup SIO DCB for $70/$F0 enable_netstream
 		lda		#$70
 		sta		ddevic
-		sta		NetstreamDcbDev
 		lda		#1
 		sta		dunit
 		lda		#$f0
 		sta		dcomnd
-		sta		NetstreamDcbCmd
 		lda		#$80
 		sta		dstats
-		sta		NetstreamDcbStat
 		lda		#<NetstreamPayloadBuf
 		sta		dbuflo
-		sta		NetstreamDcbDbufLo
 		lda		#>NetstreamPayloadBuf
 		sta		dbufhi
-		sta		NetstreamDcbDbufHi
 		lda		NetstreamPayloadLen
 		sta		dbytlo
-		sta		NetstreamDcbDbytLo
 		lda		#0
 		sta		dbythi
-		sta		NetstreamDcbDbytHi
 		lda		NetstreamPortLo
 		sta		daux1
-		sta		NetstreamDcbAux1
 		lda		NetstreamPortHi
 		sta		daux2
-		sta		NetstreamDcbAux2
 		lda		#$0f
 		sta		dtimlo
-		sta		NetstreamDcbTimLo
 		lda		#0
 		sta		dtimlo+1
 
 		cli
 		jsr		siov
-		sty		NetstreamSioStatus
 		sei
 
 		; program POKEY for stream mode with selected AUDF3/AUDF4
@@ -671,101 +586,6 @@ init_fail:
 
 .proc NS_GetFinalAUDF4_Impl
 		lda		NetstreamFinalAUDF4
-		rts
-.endp
-
-.proc NS_GetNominalBaudLo_Impl
-		lda		NetstreamNominalBaudLo
-		rts
-.endp
-
-.proc NS_GetNominalBaudHi_Impl
-		lda		NetstreamNominalBaudHi
-		rts
-.endp
-
-.proc NS_GetDebugB0_Impl
-		lda		NetstreamDebugB0
-		rts
-.endp
-
-.proc NS_GetDebugB1_Impl
-		lda		NetstreamDebugB1
-		rts
-.endp
-
-.proc NS_GetDebugB2_Impl
-		lda		NetstreamDebugB2
-		rts
-.endp
-
-.proc NS_GetDebugB3_Impl
-		lda		NetstreamDebugB3
-		rts
-.endp
-
-.proc NS_GetDebugB4_Impl
-		lda		NetstreamDebugB4
-		rts
-.endp
-
-.proc NS_GetDebugB5_Impl
-		lda		NetstreamDebugB5
-		rts
-.endp
-
-.proc NS_GetSioStatus_Impl
-		lda		NetstreamSioStatus
-		rts
-.endp
-
-.proc NS_GetDcbDev_Impl
-		lda		NetstreamDcbDev
-		rts
-.endp
-
-.proc NS_GetDcbCmd_Impl
-		lda		NetstreamDcbCmd
-		rts
-.endp
-
-.proc NS_GetDcbStat_Impl
-		lda		NetstreamDcbStat
-		rts
-.endp
-
-.proc NS_GetDcbDbufLo_Impl
-		lda		NetstreamDcbDbufLo
-		rts
-.endp
-
-.proc NS_GetDcbDbufHi_Impl
-		lda		NetstreamDcbDbufHi
-		rts
-.endp
-
-.proc NS_GetDcbDbytLo_Impl
-		lda		NetstreamDcbDbytLo
-		rts
-.endp
-
-.proc NS_GetDcbDbytHi_Impl
-		lda		NetstreamDcbDbytHi
-		rts
-.endp
-
-.proc NS_GetDcbAux1_Impl
-		lda		NetstreamDcbAux1
-		rts
-.endp
-
-.proc NS_GetDcbAux2_Impl
-		lda		NetstreamDcbAux2
-		rts
-.endp
-
-.proc NS_GetDcbTimLo_Impl
-		lda		NetstreamDcbTimLo
 		rts
 .endp
 
@@ -944,33 +764,6 @@ is_full:
 		jmp		xit
 .endp
 
-;==========================================================================
-; Serial output ready IRQ handler for two stop bits.
-;
-.proc SerialOutputIrqHandler2SB
-		;turn on complete IRQ
-		lda		pokmsk
-		ora		#$08
-		sta		pokmsk
-		sta		irqen
-		pla
-		rti
-.endp
-
-;==========================================================================
-; Serial output complete IRQ handler for two stop bits.
-;
-.proc SerialCompleteIrqHandler2SB
-		;turn off complete IRQ
-		lda		pokmsk
-		and		#$f7
-		sta		pokmsk
-		sta		irqen
-
-		;fall through
-.endp
-
-;==========================================================================
 ; Serial output ready IRQ handler for one stop bit.
 ;
 .proc SerialOutputIrqHandler
@@ -1047,11 +840,6 @@ serialVecs:
 		dta		a(SerialOutputIrqHandler)
 		dta		a(SerialCompleteIrqHandler)
 
-serialVecs2SB:
-		dta		a(SerialInputIrqHandler)
-		dta		a(SerialOutputIrqHandler2SB)
-		dta		a(SerialCompleteIrqHandler2SB)
-
 ;==========================================================================
 ; POKEY init defaults (AUDC/AUDCTL/etc). AUDF3/AUDF4 overridden below.
 pokey_init:
@@ -1074,11 +862,9 @@ serialOutIdle	.ds		1
 serialInSize	.ds		2
 serialVecSave	.ds		6
 serialErrors	.ds		4
-serial2SBMode	.ds		1
 serialConcurrentNum	.ds	1
 serialOutHead	.ds		1
 
-NS_Config	.ds		1		;config byte for concurrent mode (bit 7 = 2 stop bits)
 NetstreamVideoStd	.ds	1		;0=NTSC, 1=PAL
 NetstreamVCountMax	.ds	1
 NetstreamVCountPrev	.ds	1
@@ -1090,23 +876,6 @@ NetstreamPortLo	.ds	1
 NetstreamPortHi	.ds	1
 NetstreamNominalBaudLo	.ds	1
 NetstreamNominalBaudHi	.ds	1
-NetstreamDebugB0	.ds	1
-NetstreamDebugB1	.ds	1
-NetstreamDebugB2	.ds	1
-NetstreamDebugB3	.ds	1
-NetstreamDebugB4	.ds	1
-NetstreamDebugB5	.ds	1
-NetstreamSioStatus	.ds	1
-NetstreamDcbDev	.ds	1
-NetstreamDcbCmd	.ds	1
-NetstreamDcbStat	.ds	1
-NetstreamDcbDbufLo	.ds	1
-NetstreamDcbDbufHi	.ds	1
-NetstreamDcbDbytLo	.ds	1
-NetstreamDcbDbytHi	.ds	1
-NetstreamDcbAux1	.ds	1
-NetstreamDcbAux2	.ds	1
-NetstreamDcbTimLo	.ds	1
 
 inputBuffer	.ds		INPUT_BUFSIZE
 outputBuffer0	.ds		32

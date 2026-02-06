@@ -1,4 +1,52 @@
-# fujinetstream
-Atari Direct POKEY Serial to Network Raw Data Streaming with FujiNet
+# fujinet-atari-netstream
+Atari direct POKEY serial to network raw data streaming with FujiNet.
 
-Note: This is a work in progress. Don't expect anything to work now (or ever) :P
+This repo contains:
+- A stripped-down Altirra 850 handler (`handler/netstream.s`) built with MADS for FujiNet NETStream
+- An Atari chat example (cc65) that loads and uses the handler
+- A Linux UDP chat client to talk to the Atari
+- Build tools to assemble an ATR disk image with `autorun.sys`, `NSENGINE.OBX`, and DOS files
+
+## Build
+
+Requirements:
+- `mads` (Mad Assembler)
+- `cc65` toolchain (set `CC65_HOME` path in Makefile if needed)
+- `dir2atr` (used to build the ATR, in your environment path or edit Makefile with direct path)
+- `cc` (for the Linux chat example)
+
+Build everything:
+```
+make clean && make
+```
+
+Outputs:
+- `build/atr_root/NSENGINE.OBX` (handler binary)
+- `build/atr_root/autorun.sys` (Atari chat example)
+- `build/linux_netstream_chat` (Linux chat client)
+- `build/atari_netstream_chat.atr` (bootable ATR image)
+
+## Running the chat examples
+
+1) Start the Linux chat first:
+```
+build/linux_netstream_chat --port 9000
+```
+It waits for a `REGISTER` packet, then prints “Client Connected”.
+
+2) Boot the Atari ATR and enter the host when prompted.
+The Atari chat asks for the host/IP, port and then connects to the Linux client. Both clients default to port 9000 if none given.
+
+Atari chat status line fields:
+- `Ver` = handler version
+- `Base` = handler base address
+- `F` = final flags
+- `3` = AUDF3
+- `4` = AUDF4
+- `P` = PACTL, `AV` = bytes available, `TX`/`RX` = local counters
+
+## Docs
+
+More details live in `docs/`:
+- `docs/netstream_api.md` - handler API and calling conventions
+- `docs/POKEY-Divisors-Chart.md` - baud/divisor reference
