@@ -37,7 +37,7 @@
 
 ;==========================================================================
 
-INPUT_BUFSIZE = $20
+INPUT_BUFSIZE = $80
 NETSTREAM_HOST_MAX = 61
 
 siov	= $e459
@@ -483,6 +483,15 @@ ntsc_flag:
 		and		#$ef
 store_flags:
 		sta		NetstreamFinalFlags
+		; UDP sequencing flag (0x20) is only valid for UDP
+		; If TCP is selected (bit 0x01), clear sequencing.
+		lda		NetstreamFinalFlags
+		and		#$01
+		beq		seq_ok
+		lda		NetstreamFinalFlags
+		and		#$df
+		sta		NetstreamFinalFlags
+seq_ok:
 
 		; build payload buffer: hostname\0 flags audf3 (pad to 64 bytes)
 		ldy		#0

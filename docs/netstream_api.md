@@ -34,11 +34,12 @@ Bit meanings:
 - `0x04` TX clock source: 0=internal, 1=external
 - `0x08` RX clock source: 0=internal, 1=external
 - `0x10` Video standard: 0=NTSC, 1=PAL (set by handler)
-- `0x20..0x80` Reserved
+- `0x20` UDP sequencing: 0=off, 1=on (only valid when UDP is selected)
+- `0x40..0x80` Reserved
 
 ## C usage (cc65)
 
-The repo ships `examples/netstream_api.s` which wraps the jump table with cc65 `__fastcall__` signatures. You can reuse those prototypes in C:
+The repo ships `examples/common/netstream_api.s` which wraps the jump table with cc65 `__fastcall__` signatures. You can reuse those prototypes in C:
 
 ```
 void __fastcall__ ns_begin_stream(void);

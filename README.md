@@ -5,7 +5,8 @@ This repo contains:
 - A stripped-down Altirra 850 handler (`handler/netstream.s`) built with MADS for FujiNet NETStream
 - An Atari chat example (cc65) that loads and uses the handler
 - A Linux UDP chat client to talk to the Atari
-- Build tools to assemble an ATR disk image with `autorun.sys`, `NSENGINE.OBX`, and DOS files
+- A UDP sequencing test (Atari client + Linux server)
+- Build tools to assemble ATR disk images with `autorun.sys`, `NSENGINE.OBX`, and DOS files
 
 ## Build
 
@@ -21,10 +22,11 @@ make clean && make
 ```
 
 Outputs:
-- `build/atr_root/NSENGINE.OBX` (handler binary)
-- `build/atr_root/autorun.sys` (Atari chat example)
+- `build/NSENGINE.OBX` (handler binary)
 - `build/linux_netstream_chat` (Linux chat client)
+- `build/linux_udp_sequence_server` (Linux UDP sequencing server)
 - `build/atari_netstream_chat.atr` (bootable ATR image)
+- `build/atari_udp_sequence.atr` (bootable ATR image)
 
 ## Running the chat examples
 
@@ -44,6 +46,16 @@ Atari chat status line fields:
 - `3` = AUDF3
 - `4` = AUDF4
 - `P` = PACTL, `AV` = bytes available, `TX`/`RX` = local counters
+
+## Running the UDP sequence test
+
+1) Start the Linux server:
+```
+build/linux_udp_sequence_server --port 9000
+```
+
+2) Boot `build/atari_udp_sequence.atr` and enter host/port when prompted.
+It will fill the 40x24 screen with Lorem Ipsum, then send the data back to the server.
 
 ## Docs
 
