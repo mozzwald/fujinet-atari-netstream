@@ -302,7 +302,7 @@ not_active:
 		pha
 
 		lda		SerialOutputIrqHandler.outLevel
-		cmp		#$20
+		cmp		#$80
 		beq		full
 
 		;check if output is idle
@@ -315,7 +315,7 @@ not_active:
 		sta		outputBuffer0,x
 		inx
 		txa
-		and		#$1f
+		and		#$7f
 		sta		serialOutHead
 		inc		SerialOutputIrqHandler.outLevel
 		clc
@@ -789,7 +789,7 @@ outBuf = *-2
 		sta		serout
 		inx
 		txa
-		and		#$1f
+		and		#$7f
 		sta		outIndex
 		pla
 		tax
@@ -887,7 +887,7 @@ NetstreamNominalBaudLo	.ds	1
 NetstreamNominalBaudHi	.ds	1
 
 inputBuffer	.ds		INPUT_BUFSIZE
-outputBuffer0	.ds		32
+outputBuffer0	.ds		128
 NetstreamPayloadBuf	.ds	64
 
 bss_end = NetstreamPayloadBuf + 64
