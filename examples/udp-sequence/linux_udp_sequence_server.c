@@ -19,7 +19,7 @@
 #define SCREEN_COLS 40
 #define SCREEN_ROWS 24
 #define SCREEN_BYTES (SCREEN_COLS * SCREEN_ROWS)
-#define PACKET_DATA 16
+#define PACKET_DATA 8
 #define PACKET_COUNT (SCREEN_BYTES / PACKET_DATA)
 #define PACKET_SIZE (2 + PACKET_DATA)
 #define RETURN_WINDOW 256
@@ -27,7 +27,7 @@
 
 static void usage(const char* prog)
 {
-    fprintf(stderr, "Usage: %s [--port <port>]\n", prog);
+    fprintf(stderr, "Usage: %s [--port <port>] [--duplicates] [--reorder]\n", prog);
 }
 
 static int is_register_packet(const uint8_t* buf, size_t len)
@@ -94,6 +94,8 @@ static uint8_t ascii_to_atascii(uint8_t ch)
 int main(int argc, char** argv)
 {
     const char* port = DEFAULT_PORT;
+    int enable_duplicates = 0;
+    int enable_reorder = 0;
     struct addrinfo hints;
     struct addrinfo* res = NULL;
     struct sockaddr_storage peer_addr;
@@ -105,6 +107,10 @@ int main(int argc, char** argv)
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--port") == 0 && i + 1 < argc) {
             port = argv[++i];
+        } else if (strcmp(argv[i], "--duplicates") == 0) {
+            enable_duplicates = 1;
+        } else if (strcmp(argv[i], "--reorder") == 0) {
+            enable_reorder = 1;
         } else if (strcmp(argv[i], "--help") == 0) {
             usage(argv[0]);
             return 0;
@@ -175,6 +181,12 @@ int main(int argc, char** argv)
                 peer_len = from_len;
                 fprintf(stderr, "Client Connected\n");
                 connected = 1;
+                {
+                    struct timespec ts;
+                    ts.tv_sec = 0;
+                    ts.tv_nsec = 20000000L;
+                    nanosleep(&ts, NULL);
+                }
                 break;
             }
         }
@@ -185,12 +197,17 @@ int main(int argc, char** argv)
             lorem[i] = ascii_to_atascii(lorem[i]);
         }
 
-        fprintf(stderr, "Sending %u packets (each duplicated)...\n", (unsigned)PACKET_COUNT);
+        fprintf(stderr, "Sending %u packets%s%s...\n",
+                (unsigned)PACKET_COUNT,
+                enable_duplicates ? " (dups enabled)" : "",
+                enable_reorder ? " (reorder enabled)" : "");
         {
             uint16_t swap_index = (uint16_t)(rand() % (PACKET_COUNT - 1));
-            fprintf(stderr, "Out-of-order swap: %u then %u\n",
-                    (unsigned)(seq_base + swap_index + 1),
-                    (unsigned)(seq_base + swap_index));
+            if (enable_reorder) {
+                fprintf(stderr, "Out-of-order swap: %u then %u\n",
+                        (unsigned)(seq_base + swap_index + 1),
+                        (unsigned)(seq_base + swap_index));
+            }
             for (uint16_t i = 0; i < PACKET_COUNT; ++i) {
                 uint16_t seq = (uint16_t)(seq_base + i);
                 uint8_t packet[PACKET_SIZE];
@@ -198,7 +215,7 @@ int main(int argc, char** argv)
                 packet[1] = (uint8_t)(seq & 0xFF);
                 memcpy(packet + 2, lorem + (i * PACKET_DATA), PACKET_DATA);
 
-                if (i == swap_index) {
+                if (enable_reorder && i == swap_index) {
                     uint16_t seq2 = (uint16_t)(seq_base + i + 1);
                     uint8_t packet2[PACKET_SIZE];
                     packet2[0] = (uint8_t)((seq2 >> 8) & 0xFF);
@@ -208,13 +225,6 @@ int main(int argc, char** argv)
                     if (sendto(sockfd, packet2, sizeof(packet2), 0,
                                (const struct sockaddr*)&peer_addr, peer_len) < 0) {
                         perror("sendto");
-                    }
-                    if ((rand() & 1) != 0) {
-                        if (sendto(sockfd, packet2, sizeof(packet2), 0,
-                                   (const struct sockaddr*)&peer_addr, peer_len) < 0) {
-                            perror("sendto");
-                        }
-                        ++dup_sent;
                     }
                     {
                         struct timespec ts;
@@ -226,13 +236,6 @@ int main(int argc, char** argv)
                     if (sendto(sockfd, packet, sizeof(packet), 0,
                                (const struct sockaddr*)&peer_addr, peer_len) < 0) {
                         perror("sendto");
-                    }
-                    if ((rand() & 1) != 0) {
-                        if (sendto(sockfd, packet, sizeof(packet), 0,
-                                   (const struct sockaddr*)&peer_addr, peer_len) < 0) {
-                            perror("sendto");
-                        }
-                        ++dup_sent;
                     }
                     {
                         struct timespec ts;
@@ -248,7 +251,7 @@ int main(int argc, char** argv)
                            (const struct sockaddr*)&peer_addr, peer_len) < 0) {
                     perror("sendto");
                 }
-                if ((rand() & 1) != 0) {
+                if (enable_duplicates && (rand() & 1) != 0) {
                     if (sendto(sockfd, packet, sizeof(packet), 0,
                                (const struct sockaddr*)&peer_addr, peer_len) < 0) {
                         perror("sendto");
@@ -280,6 +283,7 @@ int main(int argc, char** argv)
         uint8_t slot_len[RETURN_WINDOW];
         uint8_t slot_data[RETURN_WINDOW][RETURN_MAX_PAYLOAD];
         time_t start = time(NULL);
+        int timed_out = 0;
 
         memset(received, 0, sizeof(received));
         memset(slot_present, 0, sizeof(slot_present));
@@ -289,10 +293,12 @@ int main(int argc, char** argv)
             struct timeval tv;
             int sel;
 
-            if (time(NULL) - start > 20) {
+            if (time(NULL) - start > 40) {
                 fprintf(stderr, "Timeout waiting for return data (%u/%u bytes).\n",
                         got_bytes, (unsigned)SCREEN_BYTES);
+                fprintf(stderr, "Timeout bytes received: %u\n", got_bytes);
                 ++total_timeouts;
+                timed_out = 1;
                 break;
             }
 
@@ -398,6 +404,14 @@ int main(int argc, char** argv)
         if (got_bytes < SCREEN_BYTES) {
             fprintf(stderr, "Return data incomplete (%u/%u bytes). Waiting for next client...\n",
                     got_bytes, (unsigned)SCREEN_BYTES);
+            if (timed_out) {
+                fprintf(stderr, "Return data mismatch (incomplete at timeout).\n");
+                ++total_mismatch;
+                fprintf(stderr,
+                        "Stats: runs=%lu verified=%lu mismatches=%lu timeouts=%lu dup_sent=%lu\n",
+                        total_runs, total_verified, total_mismatch, total_timeouts,
+                        total_duplicate_sent);
+            }
             continue;
         }
 

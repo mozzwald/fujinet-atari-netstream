@@ -51,8 +51,11 @@ Atari chat status line fields:
 
 1) Start the Linux server:
 ```
-build/linux_udp_sequence_server --port 9000
+build/linux_udp_sequence_server --port 9000 [--duplicates] [--reorder]
 ```
+
+- `--duplicates`: makes the server randomly send duplicate packets to test firmware drop packet feature
+- `--reorder`: randomly picks 2 packets to send out of order each run to test firmware reordering (ie, packet 24 then packet 23)
 
 2) Boot `build/atari_udp_sequence.atr` and enter host/port when prompted.
 It will fill the 40x24 screen with Lorem Ipsum, then send the data back to the server.

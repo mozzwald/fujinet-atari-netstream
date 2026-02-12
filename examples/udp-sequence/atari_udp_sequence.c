@@ -8,15 +8,18 @@
 #define ENGINE_PATH "D:NSENGINE.OBX"
 #define NETSTREAM_FLAG_REGISTER 0x02
 #define NETSTREAM_FLAG_TX_EXT 0x04
+#define NETSTREAM_FLAG_RX_INT 0x00
 #define NETSTREAM_FLAG_UDP_SEQ 0x20
-#define NETSTREAM_FLAGS (NETSTREAM_FLAG_REGISTER | NETSTREAM_FLAG_TX_EXT | NETSTREAM_FLAG_UDP_SEQ)
-#define NETSTREAM_BAUD 57600
+#define NETSTREAM_FLAGS (NETSTREAM_FLAG_REGISTER | NETSTREAM_FLAG_TX_EXT | NETSTREAM_FLAG_RX_INT | NETSTREAM_FLAG_UDP_SEQ)
+#define NETSTREAM_BAUD 31250
 #define NETSTREAM_PORT 9000
 
 #define SCREEN_COLS 40
 #define SCREEN_ROWS 24
 #define SCREEN_BYTES (SCREEN_COLS * SCREEN_ROWS)
 #define PACKET_DATA 32
+#define TX_CHUNK_SIZE 60
+#define TX_CHUNK_DELAY_SPIN 50
 
 void __fastcall__ ns_begin_stream(void);
 void __fastcall__ ns_end_stream(void);
@@ -194,24 +197,34 @@ static void send_back(void) {
     unsigned int sent = 0;
     unsigned long spins = 0;
     char status[24];
+    unsigned long delay;
+    unsigned int chunk_sent = 0;
+    unsigned int full_count = 0;
 
     while (sent < SCREEN_BYTES) {
         if (ns_send_byte(screen_buf[sent]) == 0) {
             ++sent;
+            ++chunk_sent;
             if ((sent % SCREEN_COLS) == 0) {
                 unsigned char i;
-                sprintf(status, "TX %u/%u", sent, (unsigned)SCREEN_BYTES);
+                sprintf(status, "TX %u/%u F%u", sent, (unsigned)SCREEN_BYTES, full_count);
                 gotoxy(0, SCREEN_ROWS - 1);
                 for (i = 0; status[i] != '\0'; ++i) {
                     cputc((unsigned char)(status[i] | 0x80));
                 }
             }
+            if (chunk_sent >= TX_CHUNK_SIZE || sent == SCREEN_BYTES) {
+                for (delay = 0; delay < TX_CHUNK_DELAY_SPIN; ++delay) {
+                }
+                chunk_sent = 0;
+            }
             spins = 0;
         } else {
+            ++full_count;
             if (++spins > 200000UL) {
                 gotoxy(0, SCREEN_ROWS - 1);
                 cprintf("TX STALL %u/%u", sent, (unsigned)SCREEN_BYTES);
-                break;
+                spins = 0;
             }
         }
     }
