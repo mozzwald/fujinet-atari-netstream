@@ -204,12 +204,6 @@ static void run_cycle(void) {
 }
 
 int main(void) {
-    if (!load_engine()) {
-        clrscr();
-        cprintf("Failed to load NSENGINE.OBX\r\n");
-        return 1;
-    }
-
     prompt_host();
     prompt_port();
 
